@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فضاء التلميذ - مستعرض النقاط</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
+        .container { max-width: 600px; background: white; margin: 30px auto; padding: 30px; border-radius: 15px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; }
+        h1 { color: #1e3a8a; margin-bottom: 5px; font-size: 24px; }
+        h3 { color: #64748b; margin-top: 0; font-size: 16px; font-weight: normal; }
+        .input-group { margin: 25px 0; }
+        input[type="text"] { width: 80%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 16px; text-align: center; font-family: 'Cairo', sans-serif; }
+        input[type="text"]:focus { border-color: #3b82f6; outline: none; }
+        button { padding: 12px 25px; background-color: #1e3a8a; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-family: 'Cairo', sans-serif; transition: 0.3s; }
+        button:hover { background-color: #2563eb; }
+        .result-card { display: none; margin-top: 25px; padding: 20px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; text-align: right; }
+        .student-info { background: #e0f2fe; padding: 12px; border-radius: 8px; color: #0369a1; font-weight: bold; margin-bottom: 15px; }
+        .tabs { display: flex; justify-content: space-around; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
+        .tab { padding: 10px; cursor: pointer; font-weight: bold; color: #64748b; }
+        .tab.active { color: #1e3a8a; border-bottom: 3px solid #1e3a8a; }
+        .marks-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .mark-box { background: white; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .mark-box span { display: block; font-size: 20px; font-weight: bold; color: #1e3a8a; margin-top: 5px; }
+        .average-zone { text-align: center; margin-top: 20px; padding: 10px; border-radius: 8px; font-size: 18px; font-weight: bold; }
+        .pass { background-color: #dcfce7; color: #15803d; }
+        .fail { background-color: #fee2e2; color: #b91c1c; }
+        .error-msg { display: none; color: #b91c1c; margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎯 كشف نقاط مادة الرياضيات</h1>
+    <h3>ثانوية الإمام المجاهد عامر محفوظي (القطارة)</h3>
+    <hr style="border: 0; height: 1px; background: #e2e8f0; margin: 20px 0;">
+
+    <div class="input-group">
+        <input type="text" id="matriculeInput" placeholder="أدخل رقم التعريف (16 رقماً)">
+        <br><br>
+        <button onclick="searchStudent()">بحث عن النتيجة</button>
+    </div>
+
+    <div id="errorBox" class="error-msg">❌ رقم التعريف غير موجود، يرجى التحقق منه.</div>
+
+    <div id="resultCard" class="result-card">
+        <div class="student-info" id="studentHeader"></div>
+        
+        <div class="tabs" id="tabsContainer"></div>
+        
+        <div id="tabContent">
+            <div class="marks-grid">
+                <div class="mark-box">التقييم المستمر<span id="ccMark">0</span></div>
+                <div class="mark-box">معدل الفروض<span id="quizMark">0</span></div>
+                <div class="mark-box">الاختبار<span id="examMark">0</span></div>
+            </div>
+            <div id="averageDisplay" class="average-zone"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // تم إدخال جميع ملفات الرقمنة الخاصة بك هنا
+    const csvFiles = [
+        // الفصل الأول
+        "باكرية احمد-الفصل الأول.xlsx - 3111001.csv",
+        "باكرية احمد-الفصل الأول.xlsx - 3112001.csv",
+        "باكرية احمد-الفصل الأول.xlsx - 3331001.csv",
+        "باكرية احمد-الفصل الأول.xlsx - 3334001.csv",
+        
+        // الفصل الثاني
+        "edited_باكرية احمد-الفصل الثاني.xlsx - 3111001.csv",
+        "edited_باكرية احمد-الفصل الثاني.xlsx - 3112001.csv",
+        "edited_باكرية احمد-الفصل الثاني.xlsx - 3331001.csv",
+        "edited_باكرية احمد-الفصل الثاني.xlsx - 3334001.csv",
+        
+        // الفصل الثالث
+        "باكرية احمد-الفصل الثالث.xlsx - 3111001.csv",
+        "باكرية احمد-الفصل الثالث.xlsx - 3112001.csv",
+        "باكرية احمد-الفصل الثالث.xlsx - 3331001.csv",
+        "باكرية احمد-الفصل الثالث.xlsx - 3334001.csv"
+    ];
+
+    let studentsDatabase = {};
+
+    async function loadCSVData() {
+        for (let file of csvFiles) {
+            try {
+                const response = await fetch(file);
+                const text = await response.text();
+                const lines = text.split('\n');
+
+                let classInfo = "فوج غير معروف";
+                let termInfo = "الفصل الأول";
+
+                for (let i = 0; i < 6; i++) {
+                    if (lines[i] && lines[i].includes("الفوج التربوي")) {
+                        let parts = lines[i].split("الفوج التربوي :")[1].split("مادة :")[0];
+                        classInfo = parts.replace(/,/g, '').trim();
+                    }
+                    if (lines[i] && lines[i].includes("الفصل")) {
+                        if (lines[i].includes("الفصل الثاني")) termInfo = "الفصل الثاني";
+                        else if (lines[i].includes("الفصل الثالث")) termInfo = "الفصل الثالث";
+                        else termInfo = "الفصل الأول";
+                    }
+                }
+
+                let headerIndex = lines.findIndex(line => line.toLowerCase().includes('matricule'));
+                if (headerIndex === -1) headerIndex = 6; 
+
+                for (let j = headerIndex + 2; j < lines.length; j++) {
+                    let row = lines[j].split(',');
+                    if (row.length < 7) continue;
+
+                    let mat = row[0].trim();
+                    if (!mat || mat === "matricule" || mat === "رقم التعريف" || mat === "") continue;
+
+                    if (!studentsDatabase[mat]) {
+                        studentsDatabase[mat] = {
+                            nom: row[1].trim(),
+                            prenom: row[2].trim(),
+                            class: classInfo,
+                            terms: {}
+                        };
+                    }
+
+                    studentsDatabase[mat].terms[termInfo] = {
+                        cc: parseFloat(row[4]) || 0,
+                        quiz: parseFloat(row[5]) || 0,
+                        exam: parseFloat(row[6]) || 0
+                    };
+                }
+            } catch (e) {
+                console.error("خطأ في قراءة الملف: " + file, e);
+            }
+        }
+    }
+
+    window.onload = loadCSVData;
+
+    let currentStudentData = null;
+
+    function searchStudent() {
+        const input = document.getElementById('matriculeInput').value.trim();
+        const errorBox = document.getElementById('errorBox');
+        const resultCard = document.getElementById('resultCard');
+
+        if (studentsDatabase[input]) {
+            errorBox.style.display = 'none';
+            resultCard.style.display = 'block';
+            
+            currentStudentData = studentsDatabase[input];
+            
+            document.getElementById('studentHeader').innerHTML = `👤 التلميذ(ة): ${currentStudentData.prenom} ${currentStudentData.nom} <br> 🏫 الفوج: ${currentStudentData.class}`;
+            
+            const tabsContainer = document.getElementById('tabsContainer');
+            tabsContainer.innerHTML = '';
+            
+            let terms = Object.keys(currentStudentData.terms);
+            
+            // ترتيب الفصول بشكل منطقي
+            const termOrder = { "الفصل الأول": 1, "الفصل الثاني": 2, "الفصل الثالث": 3 };
+            terms.sort((a, b) => termOrder[a] - termOrder[b]);
+
+            terms.forEach((term, index) => {
+                let tab = document.createElement('div');
+                tab.className = `tab ${index === 0 ? 'active' : ''}`;
+                tab.innerText = term;
+                tab.onclick = function() {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    showTermMarks(term);
+                };
+                tabsContainer.appendChild(tab);
+            });
+
+            showTermMarks(terms[0]);
+        } else {
+            resultCard.style.display = 'none';
+            errorBox.style.display = 'block';
+        }
+    }
+
+    function showTermMarks(term) {
+        const data = currentStudentData.terms[term];
+        document.getElementById('ccMark').innerText = data.cc;
+        document.getElementById('quizMark').innerText = data.quiz;
+        document.getElementById('examMark').innerText = data.exam;
+
+        let avg = (data.cc + data.quiz + (data.exam * 2)) / 4;
+        const avgDisplay = document.getElementById('averageDisplay');
+        avgDisplay.innerText = `المعدل الفصلي: ${avg.toFixed(2)} / 20`;
+
+        if (avg >= 10) {
+            avgDisplay.className = "average-zone pass";
+        } else {
+            avgDisplay.className = "average-zone fail";
+        }
+    }
+</script>
+
+</body>
+</html>
